@@ -56,8 +56,7 @@ export default function Home() {
   };
 
   const onConnect = () => {
-    // Prefer WalletConnect connector (the only one we configured)
-    const wc = connectors[0];
+    const wc = connectors[0]; // WalletConnect connector
     connect({ connector: wc });
   };
 
