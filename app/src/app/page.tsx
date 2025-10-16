@@ -1,53 +1,62 @@
 "use client";
 
 // src/app/page.tsx
-// Two-column layout: video left, right panel minimal:
-// Title "WOOL", wallet buttons, MINT button (ERC-1155).
+// Two-column: video (left), minimal controls (right).
+// Wallet buttons + ERC-1155 MINT (mint(uint256 id, uint256 amount), payable 3 MON).
+// Comments: English only.
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
-
-// Minimal ERC-1155 ABI with a common mint signature.
-// If your contract uses another fn (e.g. mintPublic, claim, etc.), replace ABI + functionName.
-const ERC1155_MINT_ABI = [
-  {
-    "inputs": [
-      { "internalType": "address", "name": "to",     "type": "address" },
-      { "internalType": "uint256", "name": "id",     "type": "uint256" },
-      { "internalType": "uint256", "name": "amount", "type": "uint256" },
-      { "internalType": "bytes",   "name": "data",   "type": "bytes" }
-    ],
-    "name": "mint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  }
-] as const;
-
-const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as const;
-
 import WalletButtons from "./WalletButtons";
 
+// ===== Your ERC-1155 contract =====
+const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as const;
+
+// Minimal ABI for your mint function
+const MINT1155_ABI = [
+  {
+    inputs: [
+      { internalType: "uint256", name: "id", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+    ],
+    name: "mint",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function",
+  },
+] as const;
+
+// Defaults (change if needed)
+const DEFAULT_TOKEN_ID = 1n;
+const DEFAULT_AMOUNT = 1n;
+// 3 MON (18 decimals)
+const PRICE_WEI_PER_UNIT = 3_000_000_000_000_000_000n;
+
 export default function Page() {
-  const { address, isConnected, status } = useAccount();
+  const { address, isConnected, status } = useAccount(); // "connected" | "connecting" | "reconnecting" | "disconnected"
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { writeContract, isPending: isMinting } = useWriteContract();
 
+  const [txError, setTxError] = useState<string | null>(null);
   const onMonad = chainId === MONAD_TESTNET.id;
   const title = useMemo(() => "WOOL", []);
 
-  const handleMint = () => {
-    // Defaults: tokenId=1, amount=1, data=0x
-    // Change tokenId/amount as you need.
+  const handleMint = async () => {
     if (!address) return;
-    writeContract({
-      abi: ERC1155_MINT_ABI,
-      address: ERC1155_ADDRESS,
-      functionName: "mint",
-      args: [address, 1n, 1n, "0x"],
-    });
+    setTxError(null);
+    try {
+      await writeContract({
+        abi: MINT1155_ABI,
+        address: ERC1155_ADDRESS,
+        functionName: "mint",
+        args: [DEFAULT_TOKEN_ID, DEFAULT_AMOUNT],
+        value: PRICE_WEI_PER_UNIT * DEFAULT_AMOUNT,
+      });
+    } catch (e: any) {
+      setTxError(e?.message || String(e));
+    }
   };
 
   return (
@@ -132,22 +141,29 @@ export default function Page() {
 
             {/* MINT: visible when connected on correct chain */}
             {isConnected && onMonad && (
-              <button
-                onClick={handleMint}
-                disabled={isMinting}
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: 14,
-                  border: "1px solid #00cf7f",
-                  background: "#00cf7f",
-                  color: "#08110d",
-                  fontWeight: 900,
-                  fontSize: 16,
-                  cursor: "pointer",
-                }}
-              >
-                {isMinting ? "Minting…" : "MINT"}
-              </button>
+              <>
+                <button
+                  onClick={handleMint}
+                  disabled={isMinting}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 14,
+                    border: "1px solid #00cf7f",
+                    background: "#00cf7f",
+                    color: "#08110d",
+                    fontWeight: 900,
+                    fontSize: 16,
+                    cursor: "pointer",
+                  }}
+                >
+                  {isMinting ? "Minting…" : "MINT"}
+                </button>
+                {txError && (
+                  <div style={{ fontSize: 12, color: "#ff8080" }}>
+                    {txError}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
