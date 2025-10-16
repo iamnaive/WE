@@ -2,10 +2,12 @@
 
 import React from "react";
 import { WagmiProvider, createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Monad Testnet chain
 const MONAD_TESTNET = defineChain({
   id: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143),
   name: "Monad Testnet",
@@ -24,6 +26,10 @@ const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 const config = createConfig({
   chains: [MONAD_TESTNET],
   connectors: [
+    // Desktop extensions (MetaMask, Rabby, OKX, etc.)
+    injected({ shimDisconnect: true }),
+
+    // Mobile & desktop via QR
     walletConnect({
       projectId: WC_PROJECT_ID,
       showQrModal: true
