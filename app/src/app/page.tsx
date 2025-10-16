@@ -1,18 +1,13 @@
 "use client";
 
 // src/app/page.tsx
-// Minimal Next.js App Router page with explicit wallet picker.
-// - No auto-connect, user must choose a wallet
-// - Shows address/chain status
-// - Provides a "Switch to Monad Testnet" button when needed
-// - Keep UI simple; plug your mint/game components below once connection works
+// Restores your hero video + info sections and adds the wallet picker.
+// - No auto-connect
+// - Clear status + switch helper
+// - Keep styles simple/dark
 
 import React, { useMemo } from "react";
-import {
-  useAccount,
-  useChainId,
-  useSwitchChain,
-} from "wagmi";
+import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 import ConnectRow from "./ConnectRow";
 
@@ -24,11 +19,10 @@ export default function Page() {
   const onMonad = chainId === MONAD_TESTNET.id;
 
   const title = useMemo(() => {
-    if (status === "connecting") return "Connecting...";
-    if (status === "reconnecting") return "Reconnecting...";
-    if (status === "disconnected") return "Connect a wallet";
+    if (status === "pending") return "Connecting…";
+    if (!isConnected) return "Connect a wallet";
     return "Woolly Eggs — Mint & Play (Monad Testnet)";
-  }, [status]);
+  }, [isConnected, status]);
 
   return (
     <main
@@ -46,9 +40,9 @@ export default function Page() {
     >
       <section
         style={{
-          width: "min(920px, 100%)",
+          width: "min(1100px, 100%)",
           display: "grid",
-          gap: 16,
+          gap: 20,
           padding: 20,
           borderRadius: 16,
           border: "1px solid rgba(255,255,255,0.08)",
@@ -57,6 +51,44 @@ export default function Page() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{title}</h1>
+
+        {/* HERO: your video restored */}
+        <div
+          style={{
+            overflow: "hidden",
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          {/* Replace /video.mp4 with your actual video path if different */}
+          <video
+            src="/video.mp4"
+            style={{ width: "100%", display: "block" }}
+            playsInline
+            muted
+            autoPlay
+            loop
+            controls
+          />
+        </div>
+
+        {/* Info block (restore your copy here) */}
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            padding: 14,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 16 }}>About</div>
+          <p style={{ margin: 0, opacity: 0.92 }}>
+            Woolly Eggs — testnet mint & mini-app on Monad. Connect a wallet, switch
+            to Monad Testnet, and you’re good to go.
+          </p>
+        </div>
 
         {/* Wallet connect row */}
         <ConnectRow />
@@ -123,9 +155,7 @@ export default function Page() {
         </div>
 
         {/* Place your mint/game UI below when connection selection works as expected */}
-        {/* Example:
-            {isConnected && onMonad && <YourMintComponent />}
-        */}
+        {/* Example: {isConnected && onMonad && <MintOrGame />} */}
       </section>
     </main>
   );
