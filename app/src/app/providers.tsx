@@ -7,7 +7,7 @@ import { walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Monad Testnet chain
+// Monad Testnet
 const MONAD_TESTNET = defineChain({
   id: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143),
   name: "Monad Testnet",
@@ -23,17 +23,50 @@ const MONAD_TESTNET = defineChain({
 
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 
+// Custom targets for wallets wagmi может не распознать из коробки
+const customTargets = [
+  {
+    // Backpack EVM
+    name: "Backpack",
+    id: "backpack",
+    getProvider: () => (typeof window !== "undefined" ? (window as any)?.backpack?.ethereum : undefined),
+  },
+  {
+    // Phantom EVM
+    name: "Phantom",
+    id: "phantom",
+    getProvider: () => (typeof window !== "undefined" ? (window as any)?.phantom?.ethereum : undefined),
+  },
+];
+
 const config = createConfig({
   chains: [MONAD_TESTNET],
   connectors: [
-    // Desktop extensions (MetaMask, Rabby, OKX, etc.)
+    // Явные targets для популярных расширений
+    injected({ target: "metaMask", shimDisconnect: true }),
+    injected({ target: "rabby", shimDisconnect: true }),
+    injected({ target: "okxWallet", shimDisconnect: true }),
+    injected({ target: "bitgetWallet", shimDisconnect: true }),
+    injected({ target: "coinbaseWallet", shimDisconnect: true }),
+    injected({ target: "phantom", shimDisconnect: true }), // если wagmi распознает phantom
+    // Кастомные (если официальные targets не сработали, возьмем провайдер из window.*)
+    ...customTargets.map(t =>
+      injected({
+        target: {
+          name: t.name,
+          shimChainChangedDisconnect: true,
+          getProvider: t.getProvider,
+        },
+      })
+    ),
+    // И общее "injected" как универсальный запасной
     injected({ shimDisconnect: true }),
 
-    // Mobile & desktop via QR
+    // WalletConnect (для мобильных/десктоп через QR)
     walletConnect({
       projectId: WC_PROJECT_ID,
-      showQrModal: true
-    })
+      showQrModal: true,
+    }),
   ],
   transports: {
     [MONAD_TESTNET.id]: http((MONAD_TESTNET.rpcUrls.default?.http || [])[0]!)
