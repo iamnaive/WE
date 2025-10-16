@@ -1,10 +1,10 @@
 "use client";
 
 // src/app/page.tsx
-// Restores your hero video + info sections and adds the wallet picker.
+// Restores hero video + info sections and adds the wallet picker.
 // - No auto-connect
 // - Clear status + switch helper
-// - Keep styles simple/dark
+// - Dark minimal styles
 
 import React, { useMemo } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
@@ -12,14 +12,14 @@ import { MONAD_TESTNET } from "./providers";
 import ConnectRow from "./ConnectRow";
 
 export default function Page() {
-  const { address, isConnected, status } = useAccount();
+  const { address, isConnected, status } = useAccount(); // "connected" | "connecting" | "reconnecting" | "disconnected"
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 
   const onMonad = chainId === MONAD_TESTNET.id;
 
   const title = useMemo(() => {
-    if (status === "pending") return "Connecting…";
+    if (status === "connecting" || status === "reconnecting") return "Connecting…";
     if (!isConnected) return "Connect a wallet";
     return "Woolly Eggs — Mint & Play (Monad Testnet)";
   }, [isConnected, status]);
@@ -60,7 +60,7 @@ export default function Page() {
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          {/* Replace /video.mp4 with your actual video path if different */}
+          {/* Replace /video.mp4 if your path differs */}
           <video
             src="/video.mp4"
             style={{ width: "100%", display: "block" }}
@@ -72,7 +72,7 @@ export default function Page() {
           />
         </div>
 
-        {/* Info block (restore your copy here) */}
+        {/* Info block */}
         <div
           style={{
             display: "grid",
@@ -154,7 +154,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Place your mint/game UI below when connection selection works as expected */}
+        {/* Place your mint/game UI below once connection works */}
         {/* Example: {isConnected && onMonad && <MintOrGame />} */}
       </section>
     </main>
