@@ -10,12 +10,12 @@ import {
   useChainId,
   useSwitchChain,
 } from "wagmi";
-import { injected } from "wagmi/connectors";
 
 // Comments: English only.
 
 const CONTRACT = process.env.NEXT_PUBLIC_CONTRACT as `0x${string}`;
 const TOKEN_ID = BigInt(process.env.NEXT_PUBLIC_TOKEN_ID || "0");
+const MONAD_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143);
 
 const ABI = [
   "function PRICE() view returns (uint256)",
@@ -26,8 +26,6 @@ const ABI = [
   "function mint(uint256 id, uint256 amount) payable",
   "function minted(uint256 id, address user) view returns (uint256)"
 ];
-
-const MONAD_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143);
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -68,15 +66,21 @@ export default function Home() {
     });
   };
 
-  // Explicit connectors
-  const injectedConn = connectors.find(c => c.id === "injected");
-  const wcConn = connectors.find(c => c.id === "walletConnect") ?? connectors[0];
-
-  const connectInjected = () => connect({ connector: injectedConn ?? injected({ shimDisconnect: true }) });
-  const connectWalletConnect = () => connect({ connector: wcConn });
-
-  // Auto-switch to Monad after connect
   const needSwitch = isConnected && chainId !== MONAD_ID;
+
+  // Уберем дубликаты по id и оставим только "готовые" коннекторы + WalletConnect
+  const uniqueConnectors = Array.from(
+    new Map(
+      connectors
+        .filter(c => c)
+        .map(c => [c.id, c])
+    ).values()
+  ).filter(c => {
+    // WalletConnect всегда показываем
+    if (c.id === "walletConnect") return true;
+    // Для injected-подсемейства показываем только те, у кого есть провайдер
+    return (c as any).ready === true || c.id === "injected";
+  });
 
   return (
     <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
@@ -109,17 +113,20 @@ export default function Home() {
 
         {!isConnected ? (
           <>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-              <button onClick={connectInjected}>
-                {connectStatus === "pending" ? "Connecting..." : "Connect (Browser Wallet)"}
-              </button>
-              <button onClick={connectWalletConnect}>
-                {connectStatus === "pending" ? "Connecting..." : "Connect (WalletConnect)"}
-              </button>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {uniqueConnectors.map((c) => (
+                <button
+                  key={c.uid || c.id}
+                  onClick={() => connect({ connector: c })}
+                  disabled={connectStatus === "pending"}
+                >
+                  {connectStatus === "pending" ? "Connecting..." : `Connect (${c.name})`}
+                </button>
+              ))}
             </div>
             <div style={{fontSize:12,opacity:0.75}}>
-              {injectedConn ? "Detected browser wallet extension." : "No browser wallet detected. Install MetaMask/Rabby, or use WalletConnect QR."}
               {connectError && <div style={{color:"#f77"}}>{String(connectError?.message ?? connectError)}</div>}
+              <div>Tip: Desktop users can choose any installed browser wallet (MetaMask, Rabby, Phantom, Backpack, OKX, Bitget, Coinbase). Mobile users can use WalletConnect.</div>
             </div>
           </>
         ) : (
