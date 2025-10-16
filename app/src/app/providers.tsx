@@ -4,6 +4,7 @@ import React from "react";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Comments: English only.
 
@@ -35,6 +36,12 @@ const config = createConfig({
   }
 });
 
+const queryClient = new QueryClient();
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  return <WagmiProvider config={config}>{children}</WagmiProvider>;
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </WagmiProvider>
+  );
 }
