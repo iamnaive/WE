@@ -1,16 +1,11 @@
 "use client";
 
-// src/app/ConnectRow.tsx
-// Explicit wallet picker UI — never auto-connects.
-// Render this where you want the "Choose a wallet" row.
-// English-only comments.
-
 import React from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 
 export default function ConnectRow() {
-  const { connectors, connect, status, error } = useConnect();
+  const { connectors, connect, status, error } = useConnect(); // status: "idle" | "pending" | "success" | "error"
   const { disconnect } = useDisconnect();
   const { address } = useAccount();
   const chainId = useChainId();
@@ -46,17 +41,17 @@ export default function ConnectRow() {
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Choose a wallet</div>
       {connectors.map((c) => (
         <button
-          key={c.uid}
+          key={(c as any).uid ?? c.id}
           onClick={() => connect({ connector: c })}
-          disabled={!c.ready || status === "connecting"}
+          disabled={!c.ready || status === "pending"}
           style={{
             padding: "10px 12px",
             borderRadius: 8,
             border: "1px solid #444",
             background: "transparent",
             textAlign: "left",
-            cursor: c.ready ? "pointer" : "not-allowed",
-            opacity: c.ready ? 1 : 0.5,
+            cursor: c.ready && status !== "pending" ? "pointer" : "not-allowed",
+            opacity: c.ready && status !== "pending" ? 1 : 0.5,
           }}
           title={c.name}
         >
@@ -64,7 +59,7 @@ export default function ConnectRow() {
         </button>
       ))}
       <div style={{ fontSize: 12, opacity: 0.7, minHeight: 18 }}>
-        {status === "connecting" ? "Opening your wallet..." : ""}
+        {status === "pending" ? "Opening your wallet..." : ""}
         {error ? `Error: ${error.message}` : ""}
       </div>
     </div>
