@@ -62,10 +62,21 @@ export default function Home() {
 
   return (
     <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
-      {/* Left: media */}
-      <section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
-        <video src="/video.mp4" poster="/poster.jpg" controls loop muted style={{width:"100%",borderRadius:12}} />
-      </section>
+      {/* Left: media (autoplaying loop, no controls) */}
+<section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
+  <video
+    src="/video.mp4"
+    poster="/poster.jpg"
+    autoPlay
+    loop
+    muted
+    playsInline
+    preload="auto"
+    onContextMenu={(e) => e.preventDefault()}
+    style={{width:"100%",borderRadius:12,pointerEvents:"none"}}
+  />
+</section>
+
 
       {/* Right: panel */}
       <section style={{display:"flex",flexDirection:"column",gap:16}}>
