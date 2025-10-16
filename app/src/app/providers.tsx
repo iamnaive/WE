@@ -6,8 +6,6 @@ import { walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Comments: English only.
-
 const MONAD_TESTNET = defineChain({
   id: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143),
   name: "Monad Testnet",
@@ -21,7 +19,7 @@ const MONAD_TESTNET = defineChain({
   }
 });
 
-const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!; // required
+const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 
 const config = createConfig({
   chains: [MONAD_TESTNET],
