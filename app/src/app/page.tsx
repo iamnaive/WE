@@ -1,155 +1,131 @@
 "use client";
 
+// src/app/page.tsx
+// Minimal Next.js App Router page with explicit wallet picker.
+// - No auto-connect, user must choose a wallet
+// - Shows address/chain status
+// - Provides a "Switch to Monad Testnet" button when needed
+// - Keep UI simple; plug your mint/game components below once connection works
+
 import React, { useMemo } from "react";
 import {
   useAccount,
-  useConnect,
-  useDisconnect,
-  useReadContract,
-  useWriteContract,
   useChainId,
   useSwitchChain,
 } from "wagmi";
+import { MONAD_TESTNET } from "./providers";
+import ConnectRow from "./ConnectRow";
 
-// Comments: English only.
-
-const CONTRACT = process.env.NEXT_PUBLIC_CONTRACT as `0x${string}`;
-const TOKEN_ID = BigInt(process.env.NEXT_PUBLIC_TOKEN_ID || "0");
-const MONAD_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143);
-
-const ABI = [
-  "function PRICE() view returns (uint256)",
-  "function MAX_PER_WALLET() view returns (uint256)",
-  "function remainingFor(address user, uint256 id) view returns (uint256)",
-  "function totalSupply(uint256) view returns (uint256)",
-  "function uri(uint256) view returns (string)",
-  "function mint(uint256 id, uint256 amount) payable",
-  "function minted(uint256 id, address user) view returns (uint256)"
-];
-
-export default function Home() {
-  const { address, isConnected } = useAccount();
+export default function Page() {
+  const { address, isConnected, status } = useAccount();
   const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
-  const { connectors, connect, status: connectStatus, error: connectError } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { writeContract, isPending } = useWriteContract();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
 
-  const { data: priceWei } = useReadContract({ address: CONTRACT, abi: ABI as any, functionName: "PRICE" });
-  const { data: cap } = useReadContract({ address: CONTRACT, abi: ABI as any, functionName: "MAX_PER_WALLET" });
-  const { data: totalMinted } = useReadContract({
-    address: CONTRACT, abi: ABI as any, functionName: "totalSupply", args: [TOKEN_ID]
-  });
-  const { data: left } = useReadContract({
-    address: CONTRACT, abi: ABI as any, functionName: "remainingFor",
-    args: [address ?? "0x0000000000000000000000000000000000000000", TOKEN_ID]
-  });
+  const onMonad = chainId === MONAD_TESTNET.id;
 
-  const priceMon = useMemo(() => {
-    if (!priceWei) return "…";
-    const s = BigInt(priceWei as any).toString().padStart(19, "0");
-    const whole = s.slice(0, -18);
-    const frac = s.slice(-18).replace(/0+$/, "");
-    return frac ? `${whole}.${frac}` : whole;
-  }, [priceWei]);
-
-  const canMint1 = Number(left ?? 0n) >= 1;
-  const canMint2 = Number(left ?? 0n) >= 2;
-
-  const onMint = async (amount: 1 | 2) => {
-    await writeContract({
-      address: CONTRACT,
-      abi: ABI as any,
-      functionName: "mint",
-      args: [TOKEN_ID, BigInt(amount)],
-      value: (priceWei as bigint) * BigInt(amount)
-    });
-  };
-
-  const needSwitch = isConnected && chainId !== MONAD_ID;
-
-  // Уберём дубликаты и оставим только готовые коннекторы + WalletConnect
-  const uniqueConnectors = Array.from(
-    new Map(
-      connectors
-        .filter(Boolean)
-        .map(c => [c.id, c])
-    ).values()
-  ).filter(c => {
-    if (c.id === "walletConnect") return true;
-    return (c as any).ready === true || c.id === "injected";
-  });
+  const title = useMemo(() => {
+    if (status === "connecting") return "Connecting...";
+    if (status === "reconnecting") return "Reconnecting...";
+    if (status === "disconnected") return "Connect a wallet";
+    return "Woolly Eggs — Mint & Play (Monad Testnet)";
+  }, [status]);
 
   return (
-    <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
-      {/* Left: media (autoplay loop, no controls) */}
-      <section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
-        <video
-          src="/video.mp4"
-          poster="/poster.jpg"
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          onContextMenu={(e) => e.preventDefault()}
-          style={{width:"100%",borderRadius:12,pointerEvents:"none"}}
-        />
-      </section>
+    <main
+      style={{
+        minHeight: "100dvh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+        background:
+          "radial-gradient(80% 60% at 50% 20%, #1c1c28 0%, #0b0b12 60%, #06060b 100%)",
+        color: "white",
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial',
+      }}
+    >
+      <section
+        style={{
+          width: "min(920px, 100%)",
+          display: "grid",
+          gap: 16,
+          padding: 20,
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(255,255,255,0.03)",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{title}</h1>
 
-      {/* Right: panel */}
-      <section style={{display:"flex",flexDirection:"column",gap:16}}>
-        <h1 style={{margin:0}}>Woolly Eggs 1155 — Mint</h1>
-        <div style={{fontSize:14,opacity:0.8}}>Contract: {CONTRACT}</div>
+        {/* Wallet connect row */}
+        <ConnectRow />
 
-        <div style={{padding:"12px 14px",border:"1px solid #333",borderRadius:10,display:"grid",gap:8}}>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span>Price per NFT:</span><b>{priceMon} MON</b></div>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span>Cap per wallet:</span><b>{String(cap ?? 2n)}</b></div>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span>Total minted:</span><b>{totalMinted?.toString?.() ?? "0"}</b></div>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span>Your remaining:</span><b>{left?.toString?.() ?? (isConnected ? "0" : "—")}</b></div>
+        {/* Chain helper */}
+        {isConnected && !onMonad && (
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              padding: 12,
+              border: "1px dashed rgba(255,255,255,0.15)",
+              borderRadius: 12,
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 14 }}>
+              Wrong network detected
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.85 }}>
+              You are on chain ID {chainId}. This app targets Monad Testnet (ID{" "}
+              {MONAD_TESTNET.id}).
+            </div>
+            <div>
+              <button
+                onClick={() => switchChain({ chainId: MONAD_TESTNET.id })}
+                disabled={isSwitching}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1px solid #6b46ff",
+                  background: "#6b46ff",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {isSwitching ? "Switching…" : "Switch to Monad Testnet"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Status block */}
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>Status</div>
+          <div style={{ fontSize: 13, opacity: 0.9 }}>
+            Connected: {isConnected ? "Yes" : "No"}
+          </div>
+          <div style={{ fontSize: 13, wordBreak: "break-all", opacity: 0.9 }}>
+            Address: {address ?? "—"}
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.9 }}>
+            Chain ID: {String(chainId ?? "—")}
+          </div>
         </div>
 
-        {!isConnected ? (
-          <>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {uniqueConnectors.map((c) => (
-                <button
-                  key={c.uid || c.id}
-                  onClick={() => connect({ connector: c })}
-                  disabled={connectStatus === "pending"}
-                >
-                  {connectStatus === "pending" ? "Connecting..." : `Connect (${c.name})`}
-                </button>
-              ))}
-            </div>
-            <div style={{fontSize:12,opacity:0.75}}>
-              {connectError && <div style={{color:"#f77"}}>{String(connectError?.message ?? connectError)}</div>}
-              <div>Tip: Desktop users can pick any installed browser wallet. Mobile can use WalletConnect.</div>
-            </div>
-          </>
-        ) : (
-          <>
-            {needSwitch && (
-              <button onClick={() => switchChain?.({ chainId: MONAD_ID })}>
-                Switch to Monad Testnet
-              </button>
-            )}
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-              <button onClick={() => onMint(1)} disabled={isPending || !canMint1 || needSwitch}>
-                {isPending ? "Minting..." : "Mint 1"}
-              </button>
-              <button onClick={() => onMint(2)} disabled={isPending || !canMint2 || needSwitch}>
-                {isPending ? "Minting..." : "Mint 2"}
-              </button>
-              <button onClick={() => { disconnect(); }} title="Disconnect then pick another wallet">
-                Change wallet
-              </button>
-            </div>
-            <div style={{fontSize:12,opacity:0.7,marginTop:12}}>
-              You are {address}. Chain: {chainId} {chainId !== MONAD_ID ? "(switch needed)" : ""}
-            </div>
-          </>
-        )}
+        {/* Place your mint/game UI below when connection selection works as expected */}
+        {/* Example:
+            {isConnected && onMonad && <YourMintComponent />}
+        */}
       </section>
     </main>
   );
