@@ -1,14 +1,32 @@
 "use client";
 
-import React from "react";
+// src/app/ConnectRow.tsx
+// Explicit wallet picker UI — never auto-connects.
+// Fixes "unavailable" on SSR by delaying rendering until mounted.
+// WalletConnect button appears only if connector exists (wc project id set).
+// English-only comments.
+
+import React, { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 
 export default function ConnectRow() {
-  const { connectors, connect, status, error } = useConnect(); // status: "idle" | "pending" | "success" | "error"
+  const { connectors, connect, status, error } = useConnect(); // "idle" | "pending" | "success" | "error"
   const { disconnect } = useDisconnect();
   const { address } = useAccount();
   const chainId = useChainId();
+
+  // Avoid SSR "unavailable" state by rendering only after mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <div style={{ opacity: 0.6, fontSize: 14 }}>
+        Loading wallet list…
+      </div>
+    );
+  }
 
   if (address) {
     return (
@@ -39,25 +57,31 @@ export default function ConnectRow() {
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Choose a wallet</div>
-      {connectors.map((c) => (
-        <button
-          key={(c as any).uid ?? c.id}
-          onClick={() => connect({ connector: c })}
-          disabled={!c.ready || status === "pending"}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #444",
-            background: "transparent",
-            textAlign: "left",
-            cursor: c.ready && status !== "pending" ? "pointer" : "not-allowed",
-            opacity: c.ready && status !== "pending" ? 1 : 0.5,
-          }}
-          title={c.name}
-        >
-          {c.name} {!c.ready ? "(unavailable)" : ""}
-        </button>
-      ))}
+      {connectors.map((c) => {
+        // WalletConnect is usable without an extension; others require readiness
+        const isWalletConnect = (c as any).type === "walletConnect";
+        const disabled = (!isWalletConnect && !c.ready) || status === "pending";
+
+        return (
+          <button
+            key={(c as any).uid ?? c.id}
+            onClick={() => connect({ connector: c })}
+            disabled={disabled}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid #444",
+              background: "transparent",
+              textAlign: "left",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.5 : 1,
+            }}
+            title={c.name}
+          >
+            {c.name} {!isWalletConnect && !c.ready ? " (unavailable)" : ""}
+          </button>
+        );
+      })}
       <div style={{ fontSize: 12, opacity: 0.7, minHeight: 18 }}>
         {status === "pending" ? "Opening your wallet..." : ""}
         {error ? `Error: ${error.message}` : ""}
