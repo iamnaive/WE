@@ -23,49 +23,20 @@ const MONAD_TESTNET = defineChain({
 
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 
-// Custom providers for wallets not auto-detected
-const customTargets = [
-  {
-    // Backpack EVM
-    name: "Backpack",
-    id: "backpack",
-    getProvider: () =>
-      typeof window !== "undefined" ? (window as any)?.backpack?.ethereum : undefined,
-  },
-  {
-    // Phantom EVM
-    name: "Phantom",
-    id: "phantom",
-    getProvider: () =>
-      typeof window !== "undefined" ? (window as any)?.phantom?.ethereum : undefined,
-  },
-];
-
 const config = createConfig({
   chains: [MONAD_TESTNET],
   connectors: [
-    // Explicit injected targets (расширения)
+    // Официальные targets у injected
     injected({ target: "metaMask", shimDisconnect: true }),
     injected({ target: "rabby", shimDisconnect: true }),
     injected({ target: "okxWallet", shimDisconnect: true }),
-    injected({ target: "bitKeep", shimDisconnect: true }), // Bitget = BitKeep
+    injected({ target: "bitKeep", shimDisconnect: true }), // Bitget
     injected({ target: "coinbaseWallet", shimDisconnect: true }),
     injected({ target: "phantom", shimDisconnect: true }),
-
-    // Custom targets via window.*
-    ...customTargets.map((t) =>
-      injected({
-        target: {
-          name: t.name,
-          getProvider: t.getProvider,
-        },
-      })
-    ),
-
-    // Универсальный injected как запасной
+    // Универсальный injected на случай других EVM-расширений
     injected({ shimDisconnect: true }),
 
-    // WalletConnect (мобилки/QR)
+    // WalletConnect
     walletConnect({
       projectId: WC_PROJECT_ID,
       showQrModal: true,
