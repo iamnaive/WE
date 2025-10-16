@@ -1,10 +1,11 @@
 "use client";
 
 // src/app/page.tsx
-// Two-column layout: video left, wallet block right.
+// Two-column layout: video left, right panel with ultra-minimal UI:
+// Title "WOOL", wallet buttons, MINT button (visible when connected & on correct chain).
 
 import React, { useMemo } from "react";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 import WalletButtons from "./WalletButtons";
 
@@ -13,13 +14,25 @@ export default function Page() {
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 
+  // Wire your mint below
+  const { writeContract, isPending: isMinting } = useWriteContract();
+
   const onMonad = chainId === MONAD_TESTNET.id;
 
-  const title = useMemo(() => {
-    if (status === "connecting" || status === "reconnecting") return "Connecting…";
-    if (!isConnected) return "Connect a wallet";
-    return "Woolly Eggs — Mint & Play (Monad Testnet)";
-  }, [isConnected, status]);
+  const title = useMemo(() => "WOOL", []);
+
+  const handleMint = () => {
+    // TODO: replace with your real contract address + ABI + function + args
+    // Example for ERC-1155:
+    // writeContract({
+    //   abi: WE1155_ABI,
+    //   address: "0xYour1155Address",
+    //   functionName: "mint",
+    //   args: [address, 1, 1, "0x"],
+    //   // value: parseEther("0") // if payable
+    // });
+    console.log("Mint clicked");
+  };
 
   return (
     <main
@@ -39,22 +52,23 @@ export default function Page() {
         style={{
           width: "min(1200px, 100%)",
           display: "grid",
-          gap: 20,
-          padding: 20,
+          gap: 18,
+          padding: 18,
           borderRadius: 16,
           border: "1px solid rgba(255,255,255,0.08)",
           background: "rgba(255,255,255,0.03)",
           boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{title}</h1>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>{title}</h1>
 
-        {/* 2-column responsive: stacks on small screens */}
+        {/* 2-column */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: 20,
+            gap: 18,
+            alignItems: "start",
           }}
         >
           {/* LEFT: video */}
@@ -63,7 +77,7 @@ export default function Page() {
               overflow: "hidden",
               borderRadius: 14,
               border: "1px solid rgba(255,255,255,0.08)",
-              minHeight: 240,
+              minHeight: 260,
             }}
           >
             <video
@@ -77,93 +91,53 @@ export default function Page() {
             />
           </div>
 
-          {/* RIGHT: info + wallet controls */}
-          <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
-            <div
-              style={{
-                display: "grid",
-                gap: 8,
-                padding: 14,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.02)",
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 16 }}>About</div>
-              <p style={{ margin: 0, opacity: 0.92 }}>
-                Woolly Eggs — testnet mint & mini-app on Monad. Use <b>WalletConnect</b> for
-                mobile/QR or <b>Browser Wallet</b> to choose MetaMask / Phantom / Backpack / Rabby.
-              </p>
-            </div>
-
-            {/* Buttons */}
+          {/* RIGHT: minimal controls */}
+          <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <WalletButtons />
 
-            {/* Chain helper */}
+            {/* If connected but wrong chain: show switch */}
             {isConnected && !onMonad && (
-              <div
+              <button
+                onClick={() => switchChain({ chainId: MONAD_TESTNET.id })}
+                disabled={isSwitching}
                 style={{
-                  display: "grid",
-                  gap: 8,
-                  padding: 12,
-                  border: "1px dashed rgba(255,255,255,0.15)",
+                  padding: "12px 14px",
                   borderRadius: 12,
+                  border: "1px solid #6b46ff",
+                  background: "#6b46ff",
+                  color: "white",
+                  fontWeight: 800,
+                  cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 14 }}>
-                  Wrong network detected
-                </div>
-                <div style={{ fontSize: 13, opacity: 0.85 }}>
-                  You are on chain ID {chainId}. This app targets Monad Testnet (ID{" "}
-                  {MONAD_TESTNET.id}).
-                </div>
-                <div>
-                  <button
-                    onClick={() => switchChain({ chainId: MONAD_TESTNET.id })}
-                    disabled={isSwitching}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid #6b46ff",
-                      background: "#6b46ff",
-                      color: "white",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {isSwitching ? "Switching…" : "Switch to Monad Testnet"}
-                  </button>
-                </div>
-              </div>
+                {isSwitching ? "Switching…" : "Switch to Monad"}
+              </button>
             )}
 
-            {/* Status */}
-            <div
-              style={{
-                display: "grid",
-                gap: 8,
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.02)",
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>Status</div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>
-                Connected: {isConnected ? "Yes" : "No"}
-              </div>
-              <div style={{ fontSize: 13, wordBreak: "break-all", opacity: 0.9 }}>
-                Address: {address ?? "—"}
-              </div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>
-                Chain ID: {String(chainId ?? "—")}
-              </div>
-            </div>
+            {/* MINT: visible when connected on correct chain */}
+            {isConnected && onMonad && (
+              <button
+                onClick={handleMint}
+                disabled={isMinting}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: 14,
+                  border: "1px solid #00cf7f",
+                  background: "#00cf7f",
+                  color: "#08110d",
+                  fontWeight: 900,
+                  fontSize: 16,
+                  cursor: "pointer",
+                }}
+              >
+                {isMinting ? "Minting…" : "MINT"}
+              </button>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Simple mobile stacking via CSS — keeps code minimal */}
+      {/* Mobile stacking */}
       <style>{`
         @media (max-width: 900px) {
           main section > div[style*="grid-template-columns"] {
