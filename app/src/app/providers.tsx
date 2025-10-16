@@ -29,42 +29,43 @@ const customTargets = [
     // Backpack EVM
     name: "Backpack",
     id: "backpack",
-    getProvider: () => (typeof window !== "undefined" ? (window as any)?.backpack?.ethereum : undefined),
+    getProvider: () =>
+      typeof window !== "undefined" ? (window as any)?.backpack?.ethereum : undefined,
   },
   {
     // Phantom EVM
     name: "Phantom",
     id: "phantom",
-    getProvider: () => (typeof window !== "undefined" ? (window as any)?.phantom?.ethereum : undefined),
+    getProvider: () =>
+      typeof window !== "undefined" ? (window as any)?.phantom?.ethereum : undefined,
   },
 ];
 
 const config = createConfig({
   chains: [MONAD_TESTNET],
   connectors: [
-    // Explicit injected targets
+    // Explicit injected targets (расширения)
     injected({ target: "metaMask", shimDisconnect: true }),
     injected({ target: "rabby", shimDisconnect: true }),
     injected({ target: "okxWallet", shimDisconnect: true }),
-    injected({ target: "bitKeep", shimDisconnect: true }),     // ← было "bitgetWallet"
+    injected({ target: "bitKeep", shimDisconnect: true }), // Bitget = BitKeep
     injected({ target: "coinbaseWallet", shimDisconnect: true }),
     injected({ target: "phantom", shimDisconnect: true }),
 
-    // Custom targets (fallback to window.*)
-    ...customTargets.map(t =>
+    // Custom targets via window.*
+    ...customTargets.map((t) =>
       injected({
         target: {
           name: t.name,
-          shimChainChangedDisconnect: true,
           getProvider: t.getProvider,
         },
       })
     ),
 
-    // Generic injected as last fallback
+    // Универсальный injected как запасной
     injected({ shimDisconnect: true }),
 
-    // WalletConnect
+    // WalletConnect (мобилки/QR)
     walletConnect({
       projectId: WC_PROJECT_ID,
       showQrModal: true,
