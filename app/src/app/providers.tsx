@@ -7,6 +7,7 @@ import { walletConnect } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Monad Testnet
 const MONAD_TESTNET = defineChain({
   id: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143),
   name: "Monad Testnet",
@@ -23,20 +24,27 @@ const MONAD_TESTNET = defineChain({
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 
 const config = createConfig({
-  autoConnect: false, // ⬅️ выключаем автоконнект
+  // Храним состояние только в текущей сессии, чтобы не было “вечного” автоподключения
   storage: createStorage({
-    storage: typeof window !== "undefined" ? window.sessionStorage : undefined, // ⬅️ не помнить навечно
+    storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
   }),
   chains: [MONAD_TESTNET],
   connectors: [
+    // Явные injected-цели
     injected({ target: "metaMask", shimDisconnect: true }),
     injected({ target: "rabby", shimDisconnect: true }),
     injected({ target: "okxWallet", shimDisconnect: true }),
-    injected({ target: "bitKeep", shimDisconnect: true }),
+    injected({ target: "bitKeep", shimDisconnect: true }), // Bitget
     injected({ target: "coinbaseWallet", shimDisconnect: true }),
     injected({ target: "phantom", shimDisconnect: true }),
+    // Универсальный injected (прочие EVM-расширения)
     injected({ shimDisconnect: true }),
-    walletConnect({ projectId: WC_PROJECT_ID, showQrModal: true })
+
+    // WalletConnect (мобилки/QR)
+    walletConnect({
+      projectId: WC_PROJECT_ID,
+      showQrModal: true,
+    }),
   ],
   transports: {
     [MONAD_TESTNET.id]: http((MONAD_TESTNET.rpcUrls.default?.http || [])[0]!)
