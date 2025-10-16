@@ -2,19 +2,16 @@
 
 // src/app/WalletButtons.tsx
 // Two-button UX:
-//  1) "WalletConnect (Mobile / QR)"
-//  2) "Browser Wallet" -> mini modal: MetaMask / Phantom / Backpack / Rabby
-// We don't auto-connect. Buttons are clickable even if wagmi marks not ready,
-// and we surface any connect error. English-only comments.
+//  1) WalletConnect (Mobile / QR)
+//  2) Browser Wallet -> mini modal with MetaMask / Phantom / Backpack / Rabby
+// Buttons in modal: highlighted if ready, grey if not. No extra labels.
+// English-only comments.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 
-type Opt = {
-  id: "metaMask" | "phantom" | "backpack" | "rabby";
-  label: string;
-};
+type Opt = "metaMask" | "phantom" | "backpack" | "rabby";
 
 export default function WalletButtons() {
   const { connectors, connect, status, error, reset } = useConnect(); // "idle" | "pending" | "success" | "error"
@@ -28,28 +25,7 @@ export default function WalletButtons() {
 
   useEffect(() => setMounted(true), []);
 
-  // Basic window-based hints so user sees "installed" correctly
-  const hint = useMemo(() => {
-    if (!mounted) return { metamask: false, rabby: false, phantom: false, backpack: false };
-    const w = window as any;
-    const eth = w.ethereum;
-    const providers: any[] = Array.isArray(eth?.providers) ? eth.providers : [eth].filter(Boolean);
-
-    const hasFlag = (key: string) => providers.some((p) => p && p[key]);
-    const hasMM = hasFlag("isMetaMask");
-    const hasRabby = hasFlag("isRabby") || !!w.rabby;
-    const hasPhantom = hasFlag("isPhantom") || !!w.phantom?.ethereum;
-    const hasBackpack = hasFlag("isBackpack") || !!w.backpack?.ethereum;
-
-    return {
-      metamask: !!hasMM,
-      rabby: !!hasRabby,
-      phantom: !!hasPhantom,
-      backpack: !!hasBackpack,
-    };
-  }, [mounted]);
-
-  const browserOptions: Opt[] = useMemo(
+  const browserOrder: { id: Opt; label: string }[] = useMemo(
     () => [
       { id: "metaMask", label: "MetaMask" },
       { id: "phantom", label: "Phantom" },
@@ -62,68 +38,61 @@ export default function WalletButtons() {
   // Map wagmi connectors by lowercase name
   const byName = useMemo(() => {
     const m = new Map<string, (typeof connectors)[number]>();
-    for (const c of connectors) {
-      m.set(c.name.toLowerCase(), c);
-    }
+    for (const c of connectors) m.set(c.name.toLowerCase(), c);
     return m;
   }, [connectors]);
 
-  // WalletConnect connector (if configured)
   const wcConnector = useMemo(
     () => connectors.find((c: any) => c.type === "walletConnect"),
     [connectors]
   );
 
-  // Pick connector by option id with fuzzy match
-  const pickConnector = (opt: Opt) => {
-    const mapKeys = Array.from(byName.keys());
-    const pick = (needle: string) =>
+  const pick = (id: Opt) => {
+    const keys = Array.from(byName.keys());
+    const find = (needle: string) =>
       byName.get(needle) ||
       byName.get(`${needle} wallet`) ||
-      mapKeys.find((k) => k.includes(needle)) && byName.get(mapKeys.find((k) => k.includes(needle))!);
+      (keys.find((k) => k.includes(needle)) && byName.get(keys.find((k) => k.includes(needle))!));
 
-    if (opt.id === "metaMask") return pick("metamask");
-    if (opt.id === "phantom") return pick("phantom");
-    if (opt.id === "backpack") return pick("backpack");
-    if (opt.id === "rabby") return pick("rabby");
+    if (id === "metaMask") return find("metamask");
+    if (id === "phantom") return find("phantom");
+    if (id === "backpack") return find("backpack");
+    if (id === "rabby") return find("rabby");
     return undefined;
   };
 
-  const tryConnect = async (opt: Opt) => {
+  const tryConnect = async (id: Opt) => {
     setLastErr(null);
-    const c = pickConnector(opt);
+    const c = pick(id);
     if (!c) {
-      setLastErr(`${opt.label}: connector not found`);
+      setLastErr("Connector not found");
       return;
     }
     try {
       await connect({ connector: c });
     } catch (e: any) {
       setLastErr(e?.message || String(e));
-      // allow another attempt without stale state
       reset();
     }
   };
 
-  if (!mounted) {
-    return <div style={{ opacity: 0.6 }}>Loading…</div>;
-  }
+  if (!mounted) return <div style={{ opacity: 0.6 }}>Loading…</div>;
 
   if (address) {
     return (
       <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontWeight: 600 }}>Connected</div>
-        <div style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>{address}</div>
         <div style={{ fontSize: 12, opacity: 0.8 }}>
-          Chain: {chainId} {chainId !== MONAD_TESTNET.id ? "(switch may be needed)" : ""}
+          {address} • Chain {chainId} {chainId !== MONAD_TESTNET.id ? "(switch needed)" : ""}
         </div>
         <button
           onClick={() => disconnect()}
           style={{
-            padding: "10px 12px",
-            borderRadius: 10,
+            padding: "12px 14px",
+            borderRadius: 12,
             border: "1px solid #444",
             background: "transparent",
+            color: "white",
+            fontWeight: 700,
             cursor: "pointer",
           }}
         >
@@ -135,7 +104,7 @@ export default function WalletButtons() {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* 1) Mobile / QR — WalletConnect */}
+      {/* 1) WalletConnect */}
       {wcConnector && (
         <button
           onClick={() => connect({ connector: wcConnector })}
@@ -149,11 +118,11 @@ export default function WalletButtons() {
             cursor: "pointer",
           }}
         >
-          {status === "pending" ? "Opening WalletConnect…" : "WalletConnect (Mobile / QR)"}
+          {status === "pending" ? "Opening…" : "WalletConnect"}
         </button>
       )}
 
-      {/* 2) Browser Wallet — modal with desktop options */}
+      {/* 2) Browser Wallet */}
       <button
         onClick={() => setShowModal(true)}
         style={{
@@ -166,10 +135,9 @@ export default function WalletButtons() {
           cursor: "pointer",
         }}
       >
-        Browser Wallet (MetaMask / Phantom / Backpack / Rabby)
+        Browser Wallet
       </button>
 
-      {/* Mini modal */}
       {showModal && (
         <div
           role="dialog"
@@ -186,7 +154,7 @@ export default function WalletButtons() {
         >
           <div
             style={{
-              width: "min(460px, 92vw)",
+              width: "min(420px, 92vw)",
               display: "grid",
               gap: 10,
               padding: 16,
@@ -196,37 +164,35 @@ export default function WalletButtons() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: 16 }}>
-              Choose a browser wallet
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>Choose</div>
 
-            {browserOptions.map((opt) => {
-              const installed =
-                (opt.id === "metaMask" && hint.metamask) ||
-                (opt.id === "phantom" && hint.phantom) ||
-                (opt.id === "backpack" && hint.backpack) ||
-                (opt.id === "rabby" && hint.rabby);
-
+            {browserOrder.map(({ id, label }) => {
+              const c = pick(id);
+              const ready = !!c?.ready;
+              const disabled = !ready || status === "pending";
               return (
                 <button
-                  key={opt.id}
-                  onClick={() => tryConnect(opt)}
+                  key={id}
+                  onClick={() => tryConnect(id)}
+                  disabled={disabled}
                   style={{
-                    padding: "10px 12px",
+                    padding: "12px",
                     borderRadius: 10,
-                    border: "1px solid #333",
-                    background: "transparent",
+                    border: ready ? "1px solid #6b46ff" : "1px solid #333",
+                    background: ready ? "rgba(107,70,255,0.12)" : "transparent",
+                    color: "white",
                     textAlign: "left",
-                    cursor: "pointer",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: disabled ? 0.55 : 1,
+                    fontWeight: 600,
                   }}
                 >
-                  {opt.label} {installed ? " (installed)" : " (click to try)"}
+                  {label}
                 </button>
               );
             })}
 
             <div style={{ fontSize: 12, opacity: 0.85, minHeight: 18 }}>
-              {status === "pending" ? "Opening your wallet…" : ""}
               {error ? `Error: ${error.message}` : ""}
               {lastErr ? `Error: ${lastErr}` : ""}
             </div>
