@@ -55,28 +55,35 @@ export default function Home() {
     });
   };
 
+  // Prefer injected if available and ready; fallback to WalletConnect
+  const pickConnector = () => {
+    const injected = connectors.find(c => c.id === "injected" && (c as any).ready);
+    if (injected) return injected;
+    const wc = connectors.find(c => c.id === "walletConnect");
+    return wc ?? connectors[0];
+  };
+
   const onConnect = () => {
-    const wc = connectors.find(c => c.id === "walletConnect") ?? connectors[0];
-    connect({ connector: wc });
+    const conn = pickConnector();
+    connect({ connector: conn });
   };
 
   return (
     <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
-      {/* Left: media (autoplaying loop, no controls) */}
-<section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
-  <video
-    src="/video.mp4"
-    poster="/poster.jpg"
-    autoPlay
-    loop
-    muted
-    playsInline
-    preload="auto"
-    onContextMenu={(e) => e.preventDefault()}
-    style={{width:"100%",borderRadius:12,pointerEvents:"none"}}
-  />
-</section>
-
+      {/* Left: media (autoplay loop, no controls) */}
+      <section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
+        <video
+          src="/video.mp4"
+          poster="/poster.jpg"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{width:"100%",borderRadius:12,pointerEvents:"none"}}
+        />
+      </section>
 
       {/* Right: panel */}
       <section style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -92,7 +99,7 @@ export default function Home() {
 
         {!isConnected ? (
           <button onClick={onConnect}>
-            {connectStatus === "pending" ? "Connecting..." : "Connect (WalletConnect)"}
+            {connectStatus === "pending" ? "Connecting..." : "Connect (Wallet)"}
           </button>
         ) : (
           <>
