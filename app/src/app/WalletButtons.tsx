@@ -1,11 +1,9 @@
 "use client";
 
 // src/app/WalletButtons.tsx
-// Two-button UX:
-//  1) WalletConnect (Mobile / QR)
-//  2) Browser Wallet -> mini modal with MetaMask / Phantom / Backpack / Rabby
-// Modal buttons: purple (ready) vs grey (not ready). No extra labels.
-// English-only comments.
+// Two-button UX: WalletConnect + Browser Wallet modal (MetaMask / Phantom / Backpack / Rabby).
+// Buttons are ALWAYS clickable; color only indicates readiness.
+// Minimal status line when connected. English-only comments.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
@@ -17,7 +15,7 @@ type Opt = "metaMask" | "phantom" | "backpack" | "rabby";
 export default function WalletButtons() {
   const { connectors, connect, status, error, reset } = useConnect(); // "idle" | "pending" | "success" | "error"
   const { disconnect } = useDisconnect();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
   const [mounted, setMounted] = useState(false);
@@ -26,21 +24,19 @@ export default function WalletButtons() {
 
   useEffect(() => setMounted(true), []);
 
-  const order: { id: Opt; match: string; label: string }[] = useMemo(
+  const order = useMemo(
     () => [
-      { id: "metaMask", match: "metamask", label: "MetaMask" },
-      { id: "phantom",  match: "phantom",  label: "Phantom"  },
-      { id: "backpack", match: "backpack", label: "Backpack" },
-      { id: "rabby",    match: "rabby",    label: "Rabby"    },
+      { id: "metaMask" as const, match: "metamask", label: "MetaMask" },
+      { id: "phantom" as const,  match: "phantom",  label: "Phantom"  },
+      { id: "backpack" as const, match: "backpack", label: "Backpack" },
+      { id: "rabby" as const,    match: "rabby",    label: "Rabby"    },
     ],
     []
   );
 
-  // Find a connector strictly by name substring (lowercased)
   const pick = (id: Opt): Connector | undefined => {
     const m = order.find(o => o.id === id)!.match;
-    const target = connectors.find(c => c.name.toLowerCase().includes(m));
-    return target;
+    return connectors.find(c => c.name.toLowerCase().includes(m));
   };
 
   const wcConnector = useMemo(
@@ -57,6 +53,7 @@ export default function WalletButtons() {
     }
     try {
       await connect({ connector: c });
+      setShowModal(false);
     } catch (e: any) {
       setLastErr(e?.message || String(e));
       reset();
@@ -65,11 +62,11 @@ export default function WalletButtons() {
 
   if (!mounted) return <div style={{ opacity: 0.6 }}>Loading…</div>;
 
-  if (address) {
+  if (isConnected && address) {
     return (
       <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontSize: 12, opacity: 0.8 }}>
-          {address} • Chain {chainId} {chainId !== MONAD_TESTNET.id ? "(switch needed)" : ""}
+        <div style={{ fontSize: 12, opacity: 0.85, wordBreak: "break-all" }}>
+          Connected: {address} • Chain {chainId}
         </div>
         <button
           onClick={() => disconnect()}
@@ -91,7 +88,6 @@ export default function WalletButtons() {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* 1) WalletConnect */}
       {wcConnector && (
         <button
           onClick={() => connect({ connector: wcConnector })}
@@ -101,7 +97,7 @@ export default function WalletButtons() {
             border: "1px solid #6b46ff",
             background: "#6b46ff",
             color: "white",
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: "pointer",
           }}
         >
@@ -109,7 +105,6 @@ export default function WalletButtons() {
         </button>
       )}
 
-      {/* 2) Browser Wallet */}
       <button
         onClick={() => setShowModal(true)}
         style={{
@@ -118,7 +113,7 @@ export default function WalletButtons() {
           border: "1px solid #444",
           background: "transparent",
           color: "white",
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: "pointer",
         }}
       >
@@ -129,14 +124,7 @@ export default function WalletButtons() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 50,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "grid", placeItems: "center", zIndex: 50 }}
           onClick={() => setShowModal(false)}
         >
           <div
@@ -151,17 +139,15 @@ export default function WalletButtons() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Choose</div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>Choose</div>
 
             {order.map(({ id, label, match }) => {
               const c = pick(id);
-              const ready = Boolean(c?.ready);
-              const disabled = !ready || status === "pending";
+              const ready = Boolean(c && (c as any).ready);
               return (
                 <button
                   key={id}
                   onClick={() => tryConnect(id)}
-                  disabled={disabled}
                   style={{
                     padding: "12px",
                     borderRadius: 10,
@@ -169,9 +155,9 @@ export default function WalletButtons() {
                     background: ready ? "rgba(107,70,255,0.12)" : "transparent",
                     color: "white",
                     textAlign: "left",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.55 : 1,
+                    cursor: "pointer",
                     fontWeight: 600,
+                    opacity: 1,
                   }}
                   title={label}
                   aria-label={match}
@@ -181,7 +167,7 @@ export default function WalletButtons() {
               );
             })}
 
-            <div style={{ fontSize: 12, opacity: 0.85, minHeight: 18 }}>
+            <div style={{ fontSize: 12, color: "#ff8a8a", minHeight: 18 }}>
               {error ? `Error: ${error.message}` : ""}
               {lastErr ? `Error: ${lastErr}` : ""}
             </div>
@@ -195,6 +181,7 @@ export default function WalletButtons() {
                 border: "1px solid #444",
                 background: "transparent",
                 cursor: "pointer",
+                color: "white",
               }}
             >
               Close
