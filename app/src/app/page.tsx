@@ -1,15 +1,18 @@
 "use client";
 
 // src/app/page.tsx
-// Two-column layout. Minimal UI: title "WOOL", wallet buttons, ERC-1155 MINT.
-// Uses your contract: mint(uint256 id, uint256 amount) payable (3 MON).
+// Minimal: WOOL, видео слева, справа кошельки + MINT.
+// Force mint on Monad Testnet: switchChain + chainId in writeContractAsync.
 
 import React, { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
+import type { Address } from "viem";
+import WalletButtons from "./WalletButtons";
 
-const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as const;
+const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as Address;
 
+// mint(uint256 id, uint256 amount) payable
 const ABI_MINT = [
   {
     inputs: [
@@ -23,40 +26,50 @@ const ABI_MINT = [
   }
 ] as const;
 
+// defaults
 const TOKEN_ID = 1n;
 const AMOUNT = 1n;
 const PRICE_PER_UNIT = 3_000_000_000_000_000_000n; // 3 MON
 
-import WalletButtons from "./WalletButtons";
-
 export default function Page() {
-  const { address, isConnected, status } = useAccount();
+  const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { switchChain, isPending: switching } = useSwitchChain();
+  const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync, isPending: minting } = useWriteContract();
 
   const [txError, setTxError] = useState<string | null>(null);
-  const [txSent, setTxSent] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   const onMonad = chainId === MONAD_TESTNET.id;
   const title = useMemo(() => "WOOL", []);
 
+  const ensureOnMonad = async () => {
+    if (!onMonad) {
+      await switchChainAsync({ chainId: MONAD_TESTNET.id });
+    }
+  };
+
   const onMint = async () => {
-    if (!isConnected || !address) { setTxError("Connect a wallet"); return; }
-    if (!onMonad) { setTxError("Switch to Monad Testnet"); return; }
     setTxError(null);
-    setTxSent(null);
+    setTxHash(null);
+    if (!isConnected || !address) { setTxError("Connect a wallet"); return; }
     try {
+      // 1) Force network
+      await ensureOnMonad();
+
+      // 2) Force transaction chain
       const hash = await writeContractAsync({
+        chainId: MONAD_TESTNET.id,                // <= ключевая строка
         abi: ABI_MINT,
         address: ERC1155_ADDRESS,
         functionName: "mint",
         args: [TOKEN_ID, AMOUNT],
-        value: PRICE_PER_UNIT * AMOUNT,
+        value: PRICE_PER_UNIT * AMOUNT,           // 3 MON
       });
-      setTxSent(hash as any);
+
+      setTxHash(hash as string);
     } catch (e: any) {
-      setTxError(e?.message || String(e));
+      setTxError(e?.shortMessage || e?.message || String(e));
     }
   };
 
@@ -102,48 +115,29 @@ export default function Page() {
           <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <WalletButtons />
 
-            {isConnected && !onMonad && (
+            {isConnected && (
               <button
-                onClick={() => switchChain({ chainId: MONAD_TESTNET.id })}
-                disabled={switching}
+                onClick={onMint}
+                disabled={minting || switching}
                 style={{
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #6b46ff",
-                  background: "#6b46ff",
-                  color: "white",
-                  fontWeight: 800,
+                  padding: "14px 16px",
+                  borderRadius: 14,
+                  border: "1px solid #00cf7f",
+                  background: "#00cf7f",
+                  color: "#08110d",
+                  fontWeight: 900,
+                  fontSize: 16,
                   cursor: "pointer",
                 }}
               >
-                {switching ? "Switching…" : "Switch to Monad"}
+                {minting || switching ? "Processing…" : "MINT"}
               </button>
             )}
 
-            {isConnected && onMonad && (
-              <>
-                <button
-                  onClick={onMint}
-                  disabled={minting}
-                  style={{
-                    padding: "14px 16px",
-                    borderRadius: 14,
-                    border: "1px solid #00cf7f",
-                    background: "#00cf7f",
-                    color: "#08110d",
-                    fontWeight: 900,
-                    fontSize: 16,
-                    cursor: "pointer",
-                  }}
-                >
-                  {minting ? "Minting…" : "MINT"}
-                </button>
-                <div style={{ minHeight: 16, fontSize: 12 }}>
-                  {txError ? <span style={{ color: "#ff8080" }}>{txError}</span> : null}
-                  {txSent ? <span>Tx: {txSent}</span> : null}
-                </div>
-              </>
-            )}
+            <div style={{ minHeight: 16, fontSize: 12 }}>
+              {txError ? <span style={{ color: "#ff8080" }}>{txError}</span> : null}
+              {txHash ? <span>Tx: {txHash}</span> : null}
+            </div>
           </div>
         </div>
       </section>
