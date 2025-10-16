@@ -68,17 +68,15 @@ export default function Home() {
 
   const needSwitch = isConnected && chainId !== MONAD_ID;
 
-  // Уберем дубликаты по id и оставим только "готовые" коннекторы + WalletConnect
+  // Уберём дубликаты и оставим только готовые коннекторы + WalletConnect
   const uniqueConnectors = Array.from(
     new Map(
       connectors
-        .filter(c => c)
+        .filter(Boolean)
         .map(c => [c.id, c])
     ).values()
   ).filter(c => {
-    // WalletConnect всегда показываем
     if (c.id === "walletConnect") return true;
-    // Для injected-подсемейства показываем только те, у кого есть провайдер
     return (c as any).ready === true || c.id === "injected";
   });
 
@@ -112,43 +110,46 @@ export default function Home() {
         </div>
 
         {!isConnected ? (
-  <>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-      {uniqueConnectors.map((c) => (
-        <button
-          key={c.uid || c.id}
-          onClick={() => connect({ connector: c })}
-          disabled={connectStatus === "pending"}
-        >
-          {connectStatus === "pending" ? "Connecting..." : `Connect (${c.name})`}
-        </button>
-      ))}
-    </div>
-    {/* ... */}
-  </>
-) : (
-  <>
-    {needSwitch && (
-      <button onClick={() => switchChain?.({ chainId: MONAD_ID })}>
-        Switch to Monad Testnet
-      </button>
-    )}
-    <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-      <button onClick={() => onMint(1)} disabled={isPending || !canMint1 || needSwitch}>
-        {isPending ? "Minting..." : "Mint 1"}
-      </button>
-      <button onClick={() => onMint(2)} disabled={isPending || !canMint2 || needSwitch}>
-        {isPending ? "Minting..." : "Mint 2"}
-      </button>
-      <button onClick={() => { disconnect(); }} title="Disconnect then pick another wallet">
-        Change wallet
-      </button>
-    </div>
-    <div style={{fontSize:12,opacity:0.7,marginTop:12}}>
-      You are {address}. Chain: {chainId} {chainId !== MONAD_ID ? "(switch needed)" : ""}
-    </div>
-  </>
-)}
+          <>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {uniqueConnectors.map((c) => (
+                <button
+                  key={c.uid || c.id}
+                  onClick={() => connect({ connector: c })}
+                  disabled={connectStatus === "pending"}
+                >
+                  {connectStatus === "pending" ? "Connecting..." : `Connect (${c.name})`}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:12,opacity:0.75}}>
+              {connectError && <div style={{color:"#f77"}}>{String(connectError?.message ?? connectError)}</div>}
+              <div>Tip: Desktop users can pick any installed browser wallet. Mobile can use WalletConnect.</div>
+            </div>
+          </>
+        ) : (
+          <>
+            {needSwitch && (
+              <button onClick={() => switchChain?.({ chainId: MONAD_ID })}>
+                Switch to Monad Testnet
+              </button>
+            )}
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              <button onClick={() => onMint(1)} disabled={isPending || !canMint1 || needSwitch}>
+                {isPending ? "Minting..." : "Mint 1"}
+              </button>
+              <button onClick={() => onMint(2)} disabled={isPending || !canMint2 || needSwitch}>
+                {isPending ? "Minting..." : "Mint 2"}
+              </button>
+              <button onClick={() => { disconnect(); }} title="Disconnect then pick another wallet">
+                Change wallet
+              </button>
+            </div>
+            <div style={{fontSize:12,opacity:0.7,marginTop:12}}>
+              You are {address}. Chain: {chainId} {chainId !== MONAD_ID ? "(switch needed)" : ""}
+            </div>
+          </>
+        )}
       </section>
     </main>
   );
