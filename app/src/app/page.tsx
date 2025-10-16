@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useReadContract, useWriteContract } from "wagmi";
 
 // Comments: English only.
 
@@ -20,8 +19,9 @@ const ABI = [
 ];
 
 export default function Home() {
-  const { authenticated, login, logout } = usePrivy();
   const { address, isConnected } = useAccount();
+  const { connectors, connect, status: connectStatus } = useConnect();
+  const { disconnect } = useDisconnect();
   const { writeContract, isPending } = useWriteContract();
 
   const { data: priceWei } = useReadContract({ address: CONTRACT, abi: ABI as any, functionName: "PRICE" });
@@ -55,11 +55,17 @@ export default function Home() {
     });
   };
 
+  const onConnect = () => {
+    // Prefer WalletConnect connector (the only one we configured)
+    const wc = connectors[0];
+    connect({ connector: wc });
+  };
+
   return (
-    <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
+    <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24,maxWidth:1080,margin:"40px auto",padding:"0 16px"}}>
       {/* Left: media */}
       <section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
-        <video src="/video.mp4" poster="/poster.jpg" controls loop muted />
+        <video src="/video.mp4" poster="/poster.jpg" style={{width:"100%",borderRadius:12}} controls loop muted />
       </section>
 
       {/* Right: panel */}
@@ -74,19 +80,21 @@ export default function Home() {
           <div style={{display:"flex",justifyContent:"space-between"}}><span>Your remaining:</span><b>{left?.toString?.() ?? (isConnected ? "0" : "—")}</b></div>
         </div>
 
-        {!authenticated ? (
-          <button onClick={login}>Connect / Login with Privy</button>
+        {!isConnected ? (
+          <button onClick={onConnect}>
+            {connectStatus === "pending" ? "Connecting..." : "Connect (WalletConnect)"}
+          </button>
         ) : (
           <>
             <div style={{display:"flex",gap:12}}>
-              <button onClick={() => onMint(1)} disabled={!isConnected || isPending || !canMint1}>
+              <button onClick={() => onMint(1)} disabled={isPending || !canMint1}>
                 {isPending ? "Minting..." : "Mint 1"}
               </button>
-              <button onClick={() => onMint(2)} disabled={!isConnected || isPending || !canMint2}>
+              <button onClick={() => onMint(2)} disabled={isPending || !canMint2}>
                 {isPending ? "Minting..." : "Mint 2"}
               </button>
             </div>
-            <button onClick={logout} style={{background:"transparent"}}>Logout</button>
+            <button onClick={() => disconnect()} style={{background:"transparent"}}>Disconnect</button>
           </>
         )}
 
