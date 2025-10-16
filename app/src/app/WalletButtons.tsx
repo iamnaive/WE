@@ -131,4 +131,68 @@ export default function WalletButtons() {
             placeItems: "center",
             zIndex: 50,
           }}
-          onClick={() => setShowModal(false)
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            style={{
+              width: "min(460px, 92vw)",
+              display: "grid",
+              gap: 8,
+              padding: 16,
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(16,16,24,0.98)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+              Choose a browser wallet
+            </div>
+
+            {browserOptions.map((opt) => {
+              const c = byName.get(opt.label.toLowerCase());
+              const disabled = !c?.ready || status === "pending";
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => c && connect({ connector: c })}
+                  disabled={disabled}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #333",
+                    background: "transparent",
+                    textAlign: "left",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  {opt.label} {!c?.ready ? " (not installed)" : ""}
+                </button>
+              );
+            })}
+
+            <div style={{ fontSize: 12, opacity: 0.7, minHeight: 18 }}>
+              {status === "pending" ? "Opening your wallet…" : ""}
+              {error ? `Error: ${error.message}` : ""}
+            </div>
+
+            <button
+              onClick={() => setShowModal(false)}
+              style={{
+                marginTop: 6,
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "1px solid #444",
+                background: "transparent",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
