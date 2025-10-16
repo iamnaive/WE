@@ -23,7 +23,7 @@ const MONAD_TESTNET = defineChain({
 
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
 
-// Custom targets for wallets wagmi может не распознать из коробки
+// Custom providers for wallets not auto-detected
 const customTargets = [
   {
     // Backpack EVM
@@ -42,14 +42,15 @@ const customTargets = [
 const config = createConfig({
   chains: [MONAD_TESTNET],
   connectors: [
-    // Явные targets для популярных расширений
+    // Explicit injected targets
     injected({ target: "metaMask", shimDisconnect: true }),
     injected({ target: "rabby", shimDisconnect: true }),
     injected({ target: "okxWallet", shimDisconnect: true }),
-    injected({ target: "bitgetWallet", shimDisconnect: true }),
+    injected({ target: "bitKeep", shimDisconnect: true }),     // ← было "bitgetWallet"
     injected({ target: "coinbaseWallet", shimDisconnect: true }),
-    injected({ target: "phantom", shimDisconnect: true }), // если wagmi распознает phantom
-    // Кастомные (если официальные targets не сработали, возьмем провайдер из window.*)
+    injected({ target: "phantom", shimDisconnect: true }),
+
+    // Custom targets (fallback to window.*)
     ...customTargets.map(t =>
       injected({
         target: {
@@ -59,10 +60,11 @@ const config = createConfig({
         },
       })
     ),
-    // И общее "injected" как универсальный запасной
+
+    // Generic injected as last fallback
     injected({ shimDisconnect: true }),
 
-    // WalletConnect (для мобильных/десктоп через QR)
+    // WalletConnect
     walletConnect({
       projectId: WC_PROJECT_ID,
       showQrModal: true,
