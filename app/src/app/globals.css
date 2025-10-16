@@ -1,3 +1,4 @@
 html,body{background:#0b0b0b;color:#eaeaea;margin:0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
 button{background:#1a1a1a;color:#eaeaea;border:1px solid #444;border-radius:10px;padding:12px 16px;cursor:pointer}
 video{background:#000;width:100%;border-radius:12px}
+main{max-width:1080px;margin:40px auto;padding:0 16px}
