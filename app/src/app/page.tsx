@@ -1,8 +1,8 @@
 "use client";
 
 // src/app/page.tsx
-// Minimal: WOOL, видео слева, справа кошельки + MINT.
-// Force mint on Monad Testnet: switchChain + chainId in writeContractAsync.
+// Minimal WOOL: видео слева, справа кошельки + MINT.
+// Force network to Monad Testnet via wallet_switchEthereumChain / wallet_addEthereumChain.
 
 import React, { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
@@ -12,7 +12,7 @@ import WalletButtons from "./WalletButtons";
 
 const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as Address;
 
-// mint(uint256 id, uint256 amount) payable
+// mint(uint256 id, uint256 amount) payable (3 MON)
 const ABI_MINT = [
   {
     inputs: [
@@ -26,13 +26,22 @@ const ABI_MINT = [
   }
 ] as const;
 
-// defaults
 const TOKEN_ID = 1n;
 const AMOUNT = 1n;
 const PRICE_PER_UNIT = 3_000_000_000_000_000_000n; // 3 MON
 
+// Hex chain id for wallet_* methods
+const MONAD_CHAIN_HEX = "0x279f"; // 10143
+const MONAD_PARAMS = {
+  chainId: MONAD_CHAIN_HEX,
+  chainName: "Monad Testnet",
+  nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+  rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || "https://testnet-rpc.monad.xyz"],
+  blockExplorerUrls: ["https://testnet.monadexplorer.com"],
+};
+
 export default function Page() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync, isPending: minting } = useWriteContract();
@@ -40,35 +49,72 @@ export default function Page() {
   const [txError, setTxError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const onMonad = chainId === MONAD_TESTNET.id;
   const title = useMemo(() => "WOOL", []);
+  const onMonad = chainId === MONAD_TESTNET.id;
 
-  const ensureOnMonad = async () => {
-    if (!onMonad) {
+  // Try wagmi switch first; if wallet ignores it, fall back to raw EIP-1193 calls.
+  const ensureMonadNetwork = async () => {
+    if (onMonad) return;
+
+    // 1) Normal wagmi switch
+    try {
       await switchChainAsync({ chainId: MONAD_TESTNET.id });
+      return;
+    } catch {
+      // ignore — try manual path below
+    }
+
+    // 2) Manual: use current connector's provider, else window.ethereum
+    const prov =
+      (connector && (await connector.getProvider?.())) ||
+      (typeof window !== "undefined" ? (window as any).ethereum : undefined);
+
+    if (!prov?.request) {
+      throw new Error("Wallet provider not available");
+    }
+
+    // try switch; if chain unknown (4902), add it, then switch again
+    try {
+      await prov.request({ method: "wallet_switchEthereumChain", params: [{ chainId: MONAD_CHAIN_HEX }] });
+    } catch (e: any) {
+      const code = e?.code ?? e?.data?.originalError?.code;
+      if (code === 4902) {
+        // add chain then switch
+        await prov.request({
+          method: "wallet_addEthereumChain",
+          params: [MONAD_PARAMS],
+        });
+        await prov.request({ method: "wallet_switchEthereumChain", params: [{ chainId: MONAD_CHAIN_HEX }] });
+      } else {
+        throw e;
+      }
     }
   };
 
   const onMint = async () => {
     setTxError(null);
     setTxHash(null);
-    if (!isConnected || !address) { setTxError("Connect a wallet"); return; }
-    try {
-      // 1) Force network
-      await ensureOnMonad();
+    if (!isConnected || !address) {
+      setTxError("Connect a wallet");
+      return;
+    }
 
-      // 2) Force transaction chain
+    try {
+      // Force the wallet to Monad Testnet
+      await ensureMonadNetwork();
+
+      // Send tx explicitly on Monad chain
       const hash = await writeContractAsync({
-        chainId: MONAD_TESTNET.id,                // <= ключевая строка
+        chainId: MONAD_TESTNET.id,
         abi: ABI_MINT,
         address: ERC1155_ADDRESS,
         functionName: "mint",
         args: [TOKEN_ID, AMOUNT],
-        value: PRICE_PER_UNIT * AMOUNT,           // 3 MON
+        value: PRICE_PER_UNIT * AMOUNT,
       });
-
       setTxHash(hash as string);
     } catch (e: any) {
+      // show concise message (phantom/metaMask often include long help text)
       setTxError(e?.shortMessage || e?.message || String(e));
     }
   };
@@ -133,6 +179,15 @@ export default function Page() {
                 {minting || switching ? "Processing…" : "MINT"}
               </button>
             )}
+
+            <div style={{ minHeight: 16, fontSize: 12 }}>
+              {/* small status for clarity */}
+              {isConnected ? (
+                <span>
+                  Connected: {address} • Chain {chainId}
+                </span>
+              ) : null}
+            </div>
 
             <div style={{ minHeight: 16, fontSize: 12 }}>
               {txError ? <span style={{ color: "#ff8080" }}>{txError}</span> : null}
