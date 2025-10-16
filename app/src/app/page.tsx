@@ -56,15 +56,15 @@ export default function Home() {
   };
 
   const onConnect = () => {
-    const wc = connectors[0]; // WalletConnect connector
+    const wc = connectors.find(c => c.id === "walletConnect") ?? connectors[0];
     connect({ connector: wc });
   };
 
   return (
-    <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24,maxWidth:1080,margin:"40px auto",padding:"0 16px"}}>
+    <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
       {/* Left: media */}
       <section style={{border:"1px solid #333",borderRadius:12,padding:16}}>
-        <video src="/video.mp4" poster="/poster.jpg" style={{width:"100%",borderRadius:12}} controls loop muted />
+        <video src="/video.mp4" poster="/poster.jpg" controls loop muted style={{width:"100%",borderRadius:12}} />
       </section>
 
       {/* Right: panel */}
