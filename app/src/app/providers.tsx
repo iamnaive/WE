@@ -1,9 +1,10 @@
 "use client";
 
 // src/app/providers.tsx
-// Wagmi v2 provider config with NO auto-connect.
-// - No implicit MetaMask popups
+// Wagmi v2 config without auto-connect.
+// - No forced MetaMask popup
 // - Session-only storage (no sticky reconnect)
+// - WalletConnect added ONLY if you set NEXT_PUBLIC_WC_PROJECT_ID
 // - English-only comments
 
 import React from "react";
@@ -28,21 +29,29 @@ export const MONAD_TESTNET = defineChain({
 });
 
 /** ===== Connectors =====
- * Do NOT call connect() on mount anywhere -> no auto-connect.
- * We omit `target` so injected providers are discovered without forcing MetaMask.
+ * We do NOT call connect() on mount anywhere -> no auto-connect.
+ * Injected: MetaMask/Rabby/Browser wallet if present.
+ * WalletConnect: only if you set NEXT_PUBLIC_WC_PROJECT_ID (otherwise hidden).
+ * Coinbase Wallet: supported via extension/app.
  */
+const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
+
 const connectors = [
   injected({
     shimDisconnect: true,
   }),
-  walletConnect({
-    projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || "demo",
-    // Keep options minimal for type-compatibility; WC modal opens automatically when needed.
-  }),
   coinbaseWallet({
     appName: "Woolly Eggs",
-    // Keep defaults; extension/app preference chosen by SDK.
   }),
+  // Add WalletConnect ONLY when project id is present
+  ...(wcProjectId
+    ? [
+        walletConnect({
+          projectId: wcProjectId,
+          showQrModal: true,
+        }),
+      ]
+    : []),
 ];
 
 /** ===== Config ===== */
@@ -53,12 +62,12 @@ export const config = createConfig({
   },
   connectors,
   storage: createStorage({
-    // Session-only so a page refresh doesn't auto-reconnect unexpectedly
+    // Session-only so a refresh won't silently reconnect
     storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
   }),
-  // Discover multiple injected providers (MetaMask, Rabby, etc.) without picking one automatically.
+  // Discover multiple injected providers (MetaMask, Rabby, etc.)
   multiInjectedProviderDiscovery: true,
-  // NOTE: Do NOT add autoConnect (removed in wagmi v2); we avoid eager reconnects by design.
+  // No autoConnect flag in wagmi v2; we intentionally avoid eager reconnects.
 });
 
 const queryClient = new QueryClient();
