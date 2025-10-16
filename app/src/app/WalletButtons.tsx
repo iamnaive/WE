@@ -4,12 +4,13 @@
 // Two-button UX:
 //  1) WalletConnect (Mobile / QR)
 //  2) Browser Wallet -> mini modal with MetaMask / Phantom / Backpack / Rabby
-// Buttons in modal: highlighted if ready, grey if not. No extra labels.
+// Modal buttons: purple (ready) vs grey (not ready). No extra labels.
 // English-only comments.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
+import type { Connector } from "wagmi";
 
 type Opt = "metaMask" | "phantom" | "backpack" | "rabby";
 
@@ -25,41 +26,27 @@ export default function WalletButtons() {
 
   useEffect(() => setMounted(true), []);
 
-  const browserOrder: { id: Opt; label: string }[] = useMemo(
+  const order: { id: Opt; match: string; label: string }[] = useMemo(
     () => [
-      { id: "metaMask", label: "MetaMask" },
-      { id: "phantom", label: "Phantom" },
-      { id: "backpack", label: "Backpack" },
-      { id: "rabby", label: "Rabby" },
+      { id: "metaMask", match: "metamask", label: "MetaMask" },
+      { id: "phantom",  match: "phantom",  label: "Phantom"  },
+      { id: "backpack", match: "backpack", label: "Backpack" },
+      { id: "rabby",    match: "rabby",    label: "Rabby"    },
     ],
     []
   );
 
-  // Map wagmi connectors by lowercase name
-  const byName = useMemo(() => {
-    const m = new Map<string, (typeof connectors)[number]>();
-    for (const c of connectors) m.set(c.name.toLowerCase(), c);
-    return m;
-  }, [connectors]);
+  // Find a connector strictly by name substring (lowercased)
+  const pick = (id: Opt): Connector | undefined => {
+    const m = order.find(o => o.id === id)!.match;
+    const target = connectors.find(c => c.name.toLowerCase().includes(m));
+    return target;
+  };
 
   const wcConnector = useMemo(
     () => connectors.find((c: any) => c.type === "walletConnect"),
     [connectors]
   );
-
-  const pick = (id: Opt) => {
-    const keys = Array.from(byName.keys());
-    const find = (needle: string) =>
-      byName.get(needle) ||
-      byName.get(`${needle} wallet`) ||
-      (keys.find((k) => k.includes(needle)) && byName.get(keys.find((k) => k.includes(needle))!));
-
-    if (id === "metaMask") return find("metamask");
-    if (id === "phantom") return find("phantom");
-    if (id === "backpack") return find("backpack");
-    if (id === "rabby") return find("rabby");
-    return undefined;
-  };
 
   const tryConnect = async (id: Opt) => {
     setLastErr(null);
@@ -166,9 +153,9 @@ export default function WalletButtons() {
           >
             <div style={{ fontWeight: 700, fontSize: 16 }}>Choose</div>
 
-            {browserOrder.map(({ id, label }) => {
+            {order.map(({ id, label, match }) => {
               const c = pick(id);
-              const ready = !!c?.ready;
+              const ready = Boolean(c?.ready);
               const disabled = !ready || status === "pending";
               return (
                 <button
@@ -186,6 +173,8 @@ export default function WalletButtons() {
                     opacity: disabled ? 0.55 : 1,
                     fontWeight: 600,
                   }}
+                  title={label}
+                  aria-label={match}
                 >
                   {label}
                 </button>
