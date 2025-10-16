@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { useAccount, useConnect, useDisconnect, useReadContract, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useReadContract,
+  useWriteContract,
+  useChainId,
+  useSwitchChain,
+} from "wagmi";
+import { injected } from "wagmi/connectors";
 
 // Comments: English only.
 
@@ -18,9 +27,13 @@ const ABI = [
   "function minted(uint256 id, address user) view returns (uint256)"
 ];
 
+const MONAD_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 10143);
+
 export default function Home() {
   const { address, isConnected } = useAccount();
-  const { connectors, connect, status: connectStatus } = useConnect();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const { connectors, connect, status: connectStatus, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
   const { writeContract, isPending } = useWriteContract();
 
@@ -55,18 +68,15 @@ export default function Home() {
     });
   };
 
-  // Prefer injected if available and ready; fallback to WalletConnect
-  const pickConnector = () => {
-    const injected = connectors.find(c => c.id === "injected" && (c as any).ready);
-    if (injected) return injected;
-    const wc = connectors.find(c => c.id === "walletConnect");
-    return wc ?? connectors[0];
-  };
+  // Explicit connectors
+  const injectedConn = connectors.find(c => c.id === "injected");
+  const wcConn = connectors.find(c => c.id === "walletConnect") ?? connectors[0];
 
-  const onConnect = () => {
-    const conn = pickConnector();
-    connect({ connector: conn });
-  };
+  const connectInjected = () => connect({ connector: injectedConn ?? injected({ shimDisconnect: true }) });
+  const connectWalletConnect = () => connect({ connector: wcConn });
+
+  // Auto-switch to Monad after connect
+  const needSwitch = isConnected && chainId !== MONAD_ID;
 
   return (
     <main style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:24}}>
@@ -98,26 +108,41 @@ export default function Home() {
         </div>
 
         {!isConnected ? (
-          <button onClick={onConnect}>
-            {connectStatus === "pending" ? "Connecting..." : "Connect (Wallet)"}
-          </button>
+          <>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              <button onClick={connectInjected}>
+                {connectStatus === "pending" ? "Connecting..." : "Connect (Browser Wallet)"}
+              </button>
+              <button onClick={connectWalletConnect}>
+                {connectStatus === "pending" ? "Connecting..." : "Connect (WalletConnect)"}
+              </button>
+            </div>
+            <div style={{fontSize:12,opacity:0.75}}>
+              {injectedConn ? "Detected browser wallet extension." : "No browser wallet detected. Install MetaMask/Rabby, or use WalletConnect QR."}
+              {connectError && <div style={{color:"#f77"}}>{String(connectError?.message ?? connectError)}</div>}
+            </div>
+          </>
         ) : (
           <>
+            {needSwitch && (
+              <button onClick={() => switchChain?.({ chainId: MONAD_ID })}>
+                Switch to Monad Testnet
+              </button>
+            )}
             <div style={{display:"flex",gap:12}}>
-              <button onClick={() => onMint(1)} disabled={isPending || !canMint1}>
+              <button onClick={() => onMint(1)} disabled={isPending || !canMint1 || needSwitch}>
                 {isPending ? "Minting..." : "Mint 1"}
               </button>
-              <button onClick={() => onMint(2)} disabled={isPending || !canMint2}>
+              <button onClick={() => onMint(2)} disabled={isPending || !canMint2 || needSwitch}>
                 {isPending ? "Minting..." : "Mint 2"}
               </button>
             </div>
             <button onClick={() => disconnect()} style={{background:"transparent"}}>Disconnect</button>
+            <div style={{fontSize:12,opacity:0.7,marginTop:12}}>
+              You are {address}. Chain: {chainId} {chainId !== MONAD_ID ? "(switch needed)" : ""}
+            </div>
           </>
         )}
-
-        <div style={{fontSize:12,opacity:0.7,marginTop:12}}>
-          You are {address || "not connected"}.
-        </div>
       </section>
     </main>
   );
