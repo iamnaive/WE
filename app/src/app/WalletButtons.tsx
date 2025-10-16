@@ -3,29 +3,51 @@
 // src/app/WalletButtons.tsx
 // Two-button UX:
 //  1) "WalletConnect (Mobile / QR)"
-//  2) "Browser Wallet" -> opens a mini modal with MetaMask / Phantom / Backpack / Rabby
-// No auto-connect. English-only comments.
+//  2) "Browser Wallet" -> mini modal: MetaMask / Phantom / Backpack / Rabby
+// We don't auto-connect. Buttons are clickable even if wagmi marks not ready,
+// and we surface any connect error. English-only comments.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
 
 type Opt = {
-  id: string;
+  id: "metaMask" | "phantom" | "backpack" | "rabby";
   label: string;
-  // wagmi connector id or uid will be matched by label
 };
 
 export default function WalletButtons() {
-  const { connectors, connect, status, error } = useConnect(); // "idle" | "pending" | "success" | "error"
+  const { connectors, connect, status, error, reset } = useConnect(); // "idle" | "pending" | "success" | "error"
   const { disconnect } = useDisconnect();
   const { address } = useAccount();
   const chainId = useChainId();
 
   const [mounted, setMounted] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [lastErr, setLastErr] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  // Basic window-based hints so user sees "installed" correctly
+  const hint = useMemo(() => {
+    if (!mounted) return { metamask: false, rabby: false, phantom: false, backpack: false };
+    const w = window as any;
+    const eth = w.ethereum;
+    const providers: any[] = Array.isArray(eth?.providers) ? eth.providers : [eth].filter(Boolean);
+
+    const hasFlag = (key: string) => providers.some((p) => p && p[key]);
+    const hasMM = hasFlag("isMetaMask");
+    const hasRabby = hasFlag("isRabby") || !!w.rabby;
+    const hasPhantom = hasFlag("isPhantom") || !!w.phantom?.ethereum;
+    const hasBackpack = hasFlag("isBackpack") || !!w.backpack?.ethereum;
+
+    return {
+      metamask: !!hasMM,
+      rabby: !!hasRabby,
+      phantom: !!hasPhantom,
+      backpack: !!hasBackpack,
+    };
+  }, [mounted]);
 
   const browserOptions: Opt[] = useMemo(
     () => [
@@ -37,11 +59,10 @@ export default function WalletButtons() {
     []
   );
 
-  // Map wagmi connectors by known name
+  // Map wagmi connectors by lowercase name
   const byName = useMemo(() => {
     const m = new Map<string, (typeof connectors)[number]>();
     for (const c of connectors) {
-      // c.name for injected targets usually equals "MetaMask", "Phantom", "Backpack", "Rabby"
       m.set(c.name.toLowerCase(), c);
     }
     return m;
@@ -52,6 +73,37 @@ export default function WalletButtons() {
     () => connectors.find((c: any) => c.type === "walletConnect"),
     [connectors]
   );
+
+  // Pick connector by option id with fuzzy match
+  const pickConnector = (opt: Opt) => {
+    const mapKeys = Array.from(byName.keys());
+    const pick = (needle: string) =>
+      byName.get(needle) ||
+      byName.get(`${needle} wallet`) ||
+      mapKeys.find((k) => k.includes(needle)) && byName.get(mapKeys.find((k) => k.includes(needle))!);
+
+    if (opt.id === "metaMask") return pick("metamask");
+    if (opt.id === "phantom") return pick("phantom");
+    if (opt.id === "backpack") return pick("backpack");
+    if (opt.id === "rabby") return pick("rabby");
+    return undefined;
+  };
+
+  const tryConnect = async (opt: Opt) => {
+    setLastErr(null);
+    const c = pickConnector(opt);
+    if (!c) {
+      setLastErr(`${opt.label}: connector not found`);
+      return;
+    }
+    try {
+      await connect({ connector: c });
+    } catch (e: any) {
+      setLastErr(e?.message || String(e));
+      // allow another attempt without stale state
+      reset();
+    }
+  };
 
   if (!mounted) {
     return <div style={{ opacity: 0.6 }}>Loading…</div>;
@@ -83,11 +135,10 @@ export default function WalletButtons() {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* 1) Mobile / QR */}
+      {/* 1) Mobile / QR — WalletConnect */}
       {wcConnector && (
         <button
           onClick={() => connect({ connector: wcConnector })}
-          disabled={status === "pending"}
           style={{
             padding: "12px 14px",
             borderRadius: 12,
@@ -95,14 +146,14 @@ export default function WalletButtons() {
             background: "#6b46ff",
             color: "white",
             fontWeight: 700,
-            cursor: status === "pending" ? "not-allowed" : "pointer",
+            cursor: "pointer",
           }}
         >
           {status === "pending" ? "Opening WalletConnect…" : "WalletConnect (Mobile / QR)"}
         </button>
       )}
 
-      {/* 2) Browser Wallet */}
+      {/* 2) Browser Wallet — modal with desktop options */}
       <button
         onClick={() => setShowModal(true)}
         style={{
@@ -137,7 +188,7 @@ export default function WalletButtons() {
             style={{
               width: "min(460px, 92vw)",
               display: "grid",
-              gap: 8,
+              gap: 10,
               padding: 16,
               borderRadius: 14,
               border: "1px solid rgba(255,255,255,0.12)",
@@ -145,42 +196,45 @@ export default function WalletButtons() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>
               Choose a browser wallet
             </div>
 
             {browserOptions.map((opt) => {
-              const c = byName.get(opt.label.toLowerCase());
-              const disabled = !c?.ready || status === "pending";
+              const installed =
+                (opt.id === "metaMask" && hint.metamask) ||
+                (opt.id === "phantom" && hint.phantom) ||
+                (opt.id === "backpack" && hint.backpack) ||
+                (opt.id === "rabby" && hint.rabby);
+
               return (
                 <button
                   key={opt.id}
-                  onClick={() => c && connect({ connector: c })}
-                  disabled={disabled}
+                  onClick={() => tryConnect(opt)}
                   style={{
                     padding: "10px 12px",
                     borderRadius: 10,
                     border: "1px solid #333",
                     background: "transparent",
                     textAlign: "left",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.5 : 1,
+                    cursor: "pointer",
                   }}
                 >
-                  {opt.label} {!c?.ready ? " (not installed)" : ""}
+                  {opt.label} {installed ? " (installed)" : " (click to try)"}
                 </button>
               );
             })}
 
-            <div style={{ fontSize: 12, opacity: 0.7, minHeight: 18 }}>
+            <div style={{ fontSize: 12, opacity: 0.85, minHeight: 18 }}>
               {status === "pending" ? "Opening your wallet…" : ""}
               {error ? `Error: ${error.message}` : ""}
+              {lastErr ? `Error: ${lastErr}` : ""}
             </div>
 
             <button
               onClick={() => setShowModal(false)}
               style={{
-                marginTop: 6,
+                marginTop: 2,
                 padding: "8px 10px",
                 borderRadius: 8,
                 border: "1px solid #444",
