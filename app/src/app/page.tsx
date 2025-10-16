@@ -1,37 +1,53 @@
 "use client";
 
 // src/app/page.tsx
-// Two-column layout: video left, right panel with ultra-minimal UI:
-// Title "WOOL", wallet buttons, MINT button (visible when connected & on correct chain).
+// Two-column layout: video left, right panel minimal:
+// Title "WOOL", wallet buttons, MINT button (ERC-1155).
 
 import React, { useMemo } from "react";
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
+
+// Minimal ERC-1155 ABI with a common mint signature.
+// If your contract uses another fn (e.g. mintPublic, claim, etc.), replace ABI + functionName.
+const ERC1155_MINT_ABI = [
+  {
+    "inputs": [
+      { "internalType": "address", "name": "to",     "type": "address" },
+      { "internalType": "uint256", "name": "id",     "type": "uint256" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "internalType": "bytes",   "name": "data",   "type": "bytes" }
+    ],
+    "name": "mint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+] as const;
+
+const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as const;
+
 import WalletButtons from "./WalletButtons";
 
 export default function Page() {
-  const { address, isConnected, status } = useAccount(); // "connected" | "connecting" | "reconnecting" | "disconnected"
+  const { address, isConnected, status } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
-
-  // Wire your mint below
   const { writeContract, isPending: isMinting } = useWriteContract();
 
   const onMonad = chainId === MONAD_TESTNET.id;
-
   const title = useMemo(() => "WOOL", []);
 
   const handleMint = () => {
-    // TODO: replace with your real contract address + ABI + function + args
-    // Example for ERC-1155:
-    // writeContract({
-    //   abi: WE1155_ABI,
-    //   address: "0xYour1155Address",
-    //   functionName: "mint",
-    //   args: [address, 1, 1, "0x"],
-    //   // value: parseEther("0") // if payable
-    // });
-    console.log("Mint clicked");
+    // Defaults: tokenId=1, amount=1, data=0x
+    // Change tokenId/amount as you need.
+    if (!address) return;
+    writeContract({
+      abi: ERC1155_MINT_ABI,
+      address: ERC1155_ADDRESS,
+      functionName: "mint",
+      args: [address, 1n, 1n, "0x"],
+    });
   };
 
   return (
