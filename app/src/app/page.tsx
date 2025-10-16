@@ -1,59 +1,60 @@
 "use client";
 
 // src/app/page.tsx
-// Two-column: video (left), minimal controls (right).
-// Wallet buttons + ERC-1155 MINT (mint(uint256 id, uint256 amount), payable 3 MON).
-// Comments: English only.
+// Two-column layout. Minimal UI: title "WOOL", wallet buttons, ERC-1155 MINT.
+// Uses your contract: mint(uint256 id, uint256 amount) payable (3 MON).
 
 import React, { useMemo, useState } from "react";
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from "wagmi";
 import { MONAD_TESTNET } from "./providers";
-import WalletButtons from "./WalletButtons";
 
-// ===== Your ERC-1155 contract =====
 const ERC1155_ADDRESS = "0xD49c2012f5DEe5d82116949ca6168584E441A5DC" as const;
 
-// Minimal ABI for your mint function
-const MINT1155_ABI = [
+const ABI_MINT = [
   {
     inputs: [
       { internalType: "uint256", name: "id", type: "uint256" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" }
     ],
     name: "mint",
     outputs: [],
     stateMutability: "payable",
-    type: "function",
-  },
+    type: "function"
+  }
 ] as const;
 
-// Defaults (change if needed)
-const DEFAULT_TOKEN_ID = 1n;
-const DEFAULT_AMOUNT = 1n;
-// 3 MON (18 decimals)
-const PRICE_WEI_PER_UNIT = 3_000_000_000_000_000_000n;
+const TOKEN_ID = 1n;
+const AMOUNT = 1n;
+const PRICE_PER_UNIT = 3_000_000_000_000_000_000n; // 3 MON
+
+import WalletButtons from "./WalletButtons";
 
 export default function Page() {
-  const { address, isConnected, status } = useAccount(); // "connected" | "connecting" | "reconnecting" | "disconnected"
+  const { address, isConnected, status } = useAccount();
   const chainId = useChainId();
-  const { switchChain, isPending: isSwitching } = useSwitchChain();
-  const { writeContract, isPending: isMinting } = useWriteContract();
+  const { switchChain, isPending: switching } = useSwitchChain();
+  const { writeContractAsync, isPending: minting } = useWriteContract();
 
   const [txError, setTxError] = useState<string | null>(null);
+  const [txSent, setTxSent] = useState<string | null>(null);
+
   const onMonad = chainId === MONAD_TESTNET.id;
   const title = useMemo(() => "WOOL", []);
 
-  const handleMint = async () => {
-    if (!address) return;
+  const onMint = async () => {
+    if (!isConnected || !address) { setTxError("Connect a wallet"); return; }
+    if (!onMonad) { setTxError("Switch to Monad Testnet"); return; }
     setTxError(null);
+    setTxSent(null);
     try {
-      await writeContract({
-        abi: MINT1155_ABI,
+      const hash = await writeContractAsync({
+        abi: ABI_MINT,
         address: ERC1155_ADDRESS,
         functionName: "mint",
-        args: [DEFAULT_TOKEN_ID, DEFAULT_AMOUNT],
-        value: PRICE_WEI_PER_UNIT * DEFAULT_AMOUNT,
+        args: [TOKEN_ID, AMOUNT],
+        value: PRICE_PER_UNIT * AMOUNT,
       });
+      setTxSent(hash as any);
     } catch (e: any) {
       setTxError(e?.message || String(e));
     }
@@ -87,44 +88,24 @@ export default function Page() {
       >
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>{title}</h1>
 
-        {/* 2-column */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 18,
-            alignItems: "start",
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
           {/* LEFT: video */}
-          <div
-            style={{
-              overflow: "hidden",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.08)",
-              minHeight: 260,
-            }}
-          >
+          <div style={{ overflow: "hidden", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", minHeight: 260 }}>
             <video
               src="/video.mp4"
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              playsInline
-              muted
-              autoPlay
-              loop
-              controls
+              playsInline muted autoPlay loop controls
             />
           </div>
 
-          {/* RIGHT: minimal controls */}
+          {/* RIGHT: controls */}
           <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <WalletButtons />
 
-            {/* If connected but wrong chain: show switch */}
             {isConnected && !onMonad && (
               <button
                 onClick={() => switchChain({ chainId: MONAD_TESTNET.id })}
-                disabled={isSwitching}
+                disabled={switching}
                 style={{
                   padding: "12px 14px",
                   borderRadius: 12,
@@ -135,16 +116,15 @@ export default function Page() {
                   cursor: "pointer",
                 }}
               >
-                {isSwitching ? "Switching…" : "Switch to Monad"}
+                {switching ? "Switching…" : "Switch to Monad"}
               </button>
             )}
 
-            {/* MINT: visible when connected on correct chain */}
             {isConnected && onMonad && (
               <>
                 <button
-                  onClick={handleMint}
-                  disabled={isMinting}
+                  onClick={onMint}
+                  disabled={minting}
                   style={{
                     padding: "14px 16px",
                     borderRadius: 14,
@@ -156,20 +136,18 @@ export default function Page() {
                     cursor: "pointer",
                   }}
                 >
-                  {isMinting ? "Minting…" : "MINT"}
+                  {minting ? "Minting…" : "MINT"}
                 </button>
-                {txError && (
-                  <div style={{ fontSize: 12, color: "#ff8080" }}>
-                    {txError}
-                  </div>
-                )}
+                <div style={{ minHeight: 16, fontSize: 12 }}>
+                  {txError ? <span style={{ color: "#ff8080" }}>{txError}</span> : null}
+                  {txSent ? <span>Tx: {txSent}</span> : null}
+                </div>
               </>
             )}
           </div>
         </div>
       </section>
 
-      {/* Mobile stacking */}
       <style>{`
         @media (max-width: 900px) {
           main section > div[style*="grid-template-columns"] {
